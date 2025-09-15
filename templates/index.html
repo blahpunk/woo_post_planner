@@ -1,0 +1,134 @@
+<!doctype html>
+<title>BlahPunk Post Planner</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root { --bg:#0f1115; --card:#141823; --line:#21283a; --ink:#e7eefb; --muted:#9db0d0; --accent:#8cf8ee; --badge:#161b28; }
+  body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); margin:0; }
+  .wrap { max-width:1200px; margin:auto; padding:24px; }
+  h1 { margin:0 0 16px; font-size:28px; color:var(--accent); letter-spacing:-0.02em; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; background:var(--card); border:1px solid var(--line); padding:12px; border-radius:14px; box-shadow:0 4px 24px rgba(0,0,0,.25); }
+  .badge { padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid #263149; background:var(--badge); color:#bcd3ff; }
+  .badge.ok { border-color:#1c7d5e; background:#133228; color:#9ff7c2; }
+  .badge.warn { border-color:#7d1c3a; background:#32131e; color:#ffafc4; }
+  .spacer { flex:1; }
+  button, a.btn, input[type="search"] {
+    background:#151a24; color:var(--ink); border:1px solid #27324a; border-radius:10px; padding:8px 12px; font-size:14px; text-decoration:none; display:inline-flex; align-items:center; gap:8px;
+  }
+  button.primary { cursor:pointer; background:linear-gradient(90deg,#1bcbe6,#1697c9); border:none; }
+  button:hover, a.btn:hover { filter:brightness(1.05); }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:10px 8px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle; }
+  th { color:#79e9f9; text-align:left; background:#171c28; position:sticky; top:0; }
+  .muted { color:var(--muted); font-size:13px; }
+  tr.locked-row { background: #132a1c; } /* subtle green tint for locked rows */
+  .lock-btn { padding:6px 10px; border-radius:10px; }
+  @media (max-width: 900px){ th, td { font-size:13px; padding:8px 6px;} }
+</style>
+
+<div class="wrap">
+  <h1>BlahPunk Post Planner</h1>
+
+  <!-- STATUS / TOOLBAR -->
+  <div class="toolbar">
+    <span class="badge {{ 'ok' if wc_ready else 'warn' }}">Woo: {{ 'Configured' if wc_ready else 'Not Configured' }}</span>
+    <span class="badge {{ 'ok' if wc_synced else '' }}">Synced: {{ 'Yes' if wc_synced else 'No' }}{% if wc_synced %} ({{wc_count}} products){% endif %}</span>
+    {% if wc_synced_at %}<span class="badge">Last Sync: {{wc_synced_at}}</span>{% endif %}
+    <div class="spacer"></div>
+
+    <form method="POST" style="display:inline">
+      <input type="hidden" name="action" value="sync_wc">
+      <button type="submit" class="btn">Sync WooCommerce</button>
+    </form>
+
+    <form method="POST" style="display:inline">
+      <input type="hidden" name="action" value="generate">
+      <button type="submit" class="primary">Generate Posts</button>
+    </form>
+
+    <!-- Reroll/Clear for lock workflow -->
+    <form method="POST" style="display:inline">
+      <input type="hidden" name="action" value="reroll">
+      <button type="submit" class="btn">Re-roll Unlocked</button>
+    </form>
+    <form method="POST" style="display:inline">
+      <input type="hidden" name="action" value="clear_unlocked">
+      <button type="submit" class="btn">Clear Unlocked</button>
+    </form>
+
+    <a href="/export" class="btn">Export CSV</a>
+  </div>
+
+  <!-- MESSAGE -->
+  {% if msg %}
+  <div class="card" style="margin-top:12px;">{{msg}}</div>
+  {% endif %}
+
+  <!-- QUICK FILTER -->
+  <div class="row">
+    <div class="card" style="flex:1; display:flex; gap:10px; align-items:center;">
+      <span class="muted">Quick search</span>
+      <input id="search" type="search" placeholder="Filter by type or name…" style="flex:1; min-width:220px;">
+      <span class="muted">Total: {{ post_count }}</span>
+    </div>
+  </div>
+
+  <!-- POSTS TABLE -->
+  {% if posts %}
+  <div class="card" style="padding:0; margin-top:12px;">
+    <table id="postsTable">
+      <thead>
+        <tr>
+          <th style="width:48px">#</th>
+          <th>Type</th>
+          <th>Name (Garment / Theme / Cache)</th>
+          <th style="width:140px">Color</th>
+          <th style="width:88px">Lock</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in posts %}
+        <tr class="{% if p.id in locks %}locked-row{% endif %}">
+          <td>{{ loop.index }}</td>
+          <td>{{ p.type }}</td>
+          <td>{{ p.garment or p.theme or p.cache or '—' }}</td>
+          <td>{{ p.color or '' }}</td>
+          <td>
+            <form method="POST" style="margin:0;">
+              <input type="hidden" name="action" value="lock_toggle">
+              <input type="hidden" name="post_id" value="{{p.id}}">
+              <button class="lock-btn" type="submit" title="Toggle lock">
+                {% if p.id in locks %}🔒{% else %}🔓{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card" style="margin-top:12px;">
+    No posts yet. Click <em>Sync WooCommerce</em> then <em>Generate Posts</em>.
+  </div>
+  {% endif %}
+
+  <div class="muted" style="margin-top:12px;">
+    Posts include: Flat Still + Model Still for each product color; per‑theme Product Reels (×5), World Art (×3), Main Art (×1); and per‑cache Cache Art (×3). Shuffled at generation.
+    Locks keep rows fixed during “Re‑roll Unlocked” and survive page reloads.
+  </div>
+</div>
+
+<script>
+  const q = document.getElementById('search');
+  const rows = [...document.querySelectorAll('#postsTable tbody tr')];
+  function filter() {
+    const v = (q.value || '').toLowerCase();
+    rows.forEach(tr => {
+      const text = tr.innerText.toLowerCase();
+      tr.style.display = text.includes(v) ? '' : 'none';
+    });
+  }
+  q?.addEventListener('input', filter);
+</script>
